@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>宿題ヘルパーAI | Homework Helper v2.0</title>
+    <title>宿題ヘルパーAI | Homework Helper v2.1</title>
     
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap" rel="stylesheet">
@@ -41,8 +41,20 @@
 
             useEffect(() => { localStorage.setItem('hw_hist_v2', JSON.stringify(history)); }, [history]);
 
+            // API設定をやり直す関数
+            const resetApiKey = () => {
+                if(confirm("APIキーの設定をやり直しますか？（履歴は保持されます）")) {
+                    localStorage.removeItem('hw_api_v2');
+                    localStorage.removeItem('hw_auth_v2');
+                    setApiKey('');
+                    setIsAuth(false);
+                    setStatus('idle');
+                }
+            };
+
             const handleSetup = (key, pass) => {
                 if (pass !== "2024") return alert("合言葉が違います");
+                if (!key.startsWith("AIza")) return alert("有効なAPIキーを入力してください");
                 localStorage.setItem('hw_api_v2', key);
                 localStorage.setItem('hw_auth_v2', 'true');
                 setApiKey(key);
@@ -52,7 +64,6 @@
             const analyzeHomework = async () => {
                 setStatus('processing');
                 try {
-                    // 最新の2.0 Flashモデルを指定
                     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
                     
                     const imageParts = images.map(img => ({ inline_data: { mime_type: "image/jpeg", data: img.src.split(',')[1] } }));
@@ -65,7 +76,7 @@
                     });
 
                     const data = await response.json();
-                    if (!response.ok) throw new Error(data.error?.message || "APIエラー");
+                    if (!response.ok) throw new Error(data.error?.message || "APIエラー。キーが無効な可能性があります。");
 
                     const answer = data.candidates[0].content.parts[0].text;
                     setResultText(answer);
@@ -85,7 +96,7 @@
                     } catch (e) { console.log('Share failed'); }
                 } else {
                     navigator.clipboard.writeText(text);
-                    alert("クリップボードにコピーしました！");
+                    alert("解説をコピーしました！友達に送ってあげてね。");
                 }
             };
 
@@ -93,35 +104,48 @@
 
             return (
                 <div className="max-w-5xl mx-auto p-4 md:p-8 min-h-screen">
-                    <header className="flex justify-between items-center mb-10">
+                    <header className="flex justify-between items-center mb-10 flex-wrap gap-4">
                         <div>
                             <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Homework Helper AI</h1>
                             <p className="text-gray-400 text-sm font-medium">Gemini 2.0 Flash Powered</p>
                         </div>
-                        <button onClick={() => setShowHistory(true)} className="bento p-3 px-6 hover:bg-white transition-all font-bold text-indigo-600">🕒 履歴</button>
+                        <div className="flex gap-3">
+                            <button onClick={resetApiKey} className="bento p-3 px-5 hover:bg-white transition-all text-sm font-bold text-gray-500 flex items-center gap-2">
+                                <span>⚙️</span> API設定
+                            </button>
+                            <button onClick={() => setShowHistory(true)} className="bento p-3 px-6 hover:bg-white transition-all font-bold text-indigo-600 flex items-center gap-2">
+                                <span>🕒</span> 履歴
+                            </button>
+                        </div>
                     </header>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in">
+                        {/* 左サイドバー：設定 */}
                         <aside className="lg:col-span-1 space-y-6">
-                            <div className="bento p-8 space-y-5">
-                                <h3 className="font-bold text-xl border-b pb-3 border-gray-100">学習設定</h3>
+                            <div className="bento p-8 space-y-6 shadow-sm">
+                                <h3 className="font-bold text-xl border-b pb-3 border-gray-100 flex items-center gap-2">
+                                    <span>🎯</span> 学習設定
+                                </h3>
                                 {['subject', 'level', 'tone'].map(key => (
                                     <div key={key}>
-                                        <label className="text-xs font-bold text-indigo-400 mb-1 block uppercase tracking-widest">{key === 'subject' ? '教科' : key === 'level' ? '学年' : '教え方'}</label>
-                                        <select className="w-full bg-gray-50 border-none rounded-xl p-3 outline-none ring-1 ring-gray-100 focus:ring-2 focus:ring-indigo-300 transition-all" value={settings[key]} onChange={e=>setSettings({...settings, [key]:e.target.value})}>
+                                        <label className="text-xs font-bold text-indigo-400 mb-2 block uppercase tracking-widest">
+                                            {key === 'subject' ? '教科' : key === 'level' ? '学年' : '教え方'}
+                                        </label>
+                                        <select className="w-full bg-gray-50 border-none rounded-xl p-3 outline-none ring-1 ring-gray-100 focus:ring-2 focus:ring-indigo-300 transition-all cursor-pointer" value={settings[key]} onChange={e=>setSettings({...settings, [key]:e.target.value})}>
                                             {key === 'subject' && ['数学', '理科', '英語', '国語', '社会'].map(v=><option key={v}>{v}</option>)}
                                             {key === 'level' && ['小学生', '中学生', '高校生', '大学生'].map(v=><option key={v}>{v}</option>)}
-                                            {key === 'tone' && ['優しく丁寧に', 'ヒントで考えさせる', '答えのみ簡潔に'].map(v=><option key={v}>{v}</option>)}
+                                            {key === 'tone' && ['優しく丁寧に', 'ヒントで考えさせる', '答えのみ簡潔に', '面白おかしく'].map(v=><option key={v}>{v}</option>)}
                                         </select>
                                     </div>
                                 ))}
                             </div>
                         </aside>
 
+                        {/* メインエリア */}
                         <main className="lg:col-span-2 space-y-6">
                             {status === 'idle' && (
                                 <>
-                                    <div className="bento border-4 border-dashed border-indigo-50 p-12 text-center relative group hover:border-indigo-200 transition-all cursor-pointer">
+                                    <div className="bento border-4 border-dashed border-indigo-50 p-12 text-center relative group hover:border-indigo-200 transition-all cursor-pointer bg-white/50">
                                         <input type="file" multiple accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => {
                                             Array.from(e.target.files).forEach(file => {
                                                 const reader = new FileReader();
@@ -131,43 +155,49 @@
                                         }} />
                                         <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">📸</div>
                                         <p className="text-indigo-600 font-bold text-lg">宿題の写真をアップロード</p>
-                                        <p className="text-gray-400 text-sm mt-2">最大10枚まで同時解析可能</p>
+                                        <p className="text-gray-400 text-sm mt-2">複数枚アップして一気に解決！</p>
                                     </div>
 
                                     {images.length > 0 && (
-                                        <div className="flex gap-4 overflow-x-auto py-2">
+                                        <div className="flex gap-4 overflow-x-auto py-2 px-1">
                                             {images.map(img => (
-                                                <div key={img.id} className="relative w-32 h-32 flex-shrink-0 rounded-2xl overflow-hidden shadow-md border-2 border-white">
+                                                <div key={img.id} className="relative w-32 h-32 flex-shrink-0 rounded-2xl overflow-hidden shadow-md border-2 border-white group">
                                                     <img src={img.src} className="w-full h-full object-cover" />
-                                                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center gap-2 transition-all">
-                                                        <button onClick={() => setEditingId(img.id)} className="bg-white p-2 rounded-full text-xs">🖊</button>
-                                                        <button onClick={() => setImages(images.filter(i=>i.id!==img.id))} className="bg-red-500 text-white p-2 rounded-full text-xs">×</button>
+                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition-all">
+                                                        <button onClick={() => setEditingId(img.id)} className="bg-white text-indigo-600 font-bold px-3 py-1 rounded-full text-xs shadow-sm">🖊 編集</button>
+                                                        <button onClick={() => setImages(images.filter(i=>i.id!==img.id))} className="bg-red-500 text-white font-bold px-3 py-1 rounded-full text-xs shadow-sm">削除</button>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
 
-                                    <textarea placeholder="追加の指示（例：問4だけ解説して）" className="w-full bento p-6 h-32 outline-none focus:ring-2 focus:ring-indigo-300" value={settings.prompt} onChange={e=>setSettings({...settings, prompt:e.target.value})} />
+                                    <textarea placeholder="AIへの追加メッセージ（例：問3だけ詳しく、図形を重点的に！）" className="w-full bento p-6 h-32 outline-none focus:ring-2 focus:ring-indigo-300 shadow-inner" value={settings.prompt} onChange={e=>setSettings({...settings, prompt:e.target.value})} />
                                     
-                                    <button onClick={analyzeHomework} disabled={images.length === 0} className="w-full btn-grad text-white py-6 rounded-3xl font-bold text-xl shadow-xl disabled:opacity-30">解析を開始する 🚀</button>
+                                    <button onClick={analyzeHomework} disabled={images.length === 0} className="w-full btn-grad text-white py-6 rounded-3xl font-bold text-xl shadow-xl disabled:opacity-30">
+                                        解析を開始する 🚀
+                                    </button>
                                 </>
                             )}
 
                             {status === 'processing' && (
-                                <div className="bento p-20 text-center animate-pulse">
-                                    <div className="text-7xl mb-6">🧠</div>
-                                    <h2 className="text-2xl font-bold text-indigo-600">最新AIが解析中...</h2>
+                                <div className="bento p-24 text-center space-y-6">
+                                    <div className="text-7xl animate-bounce">🧠</div>
+                                    <h2 className="text-3xl font-bold text-indigo-600">2.0 Flashが思考中...</h2>
+                                    <div className="w-full max-w-xs h-2 bg-indigo-50 rounded-full mx-auto overflow-hidden">
+                                        <div className="h-full bg-indigo-500 w-1/2 animate-[scroll_1.5s_infinite_linear]"></div>
+                                    </div>
+                                    <style>{`@keyframes scroll { from { transform: translateX(-100%); } to { transform: translateX(200%); } }`}</style>
                                 </div>
                             )}
 
                             {status === 'result' && (
                                 <div className="space-y-6 animate-in">
-                                    <div className="bento p-10 prose prose-indigo max-w-none">
+                                    <div className="bento p-10 prose prose-indigo max-w-none shadow-sm">
                                         <div dangerouslySetInnerHTML={{ __html: marked.parse(resultText) }} />
                                     </div>
                                     <div className="flex gap-4">
-                                        <button onClick={() => setStatus('idle')} className="flex-1 bento py-5 font-bold text-gray-500">戻る</button>
+                                        <button onClick={() => setStatus('idle')} className="flex-1 bento py-5 font-bold text-gray-500 hover:bg-gray-50 transition-all">戻る</button>
                                         <button onClick={shareContent} className="flex-1 btn-grad text-white py-5 rounded-3xl font-bold shadow-lg flex items-center justify-center gap-2">
                                             <span>📤</span> 友達に共有する
                                         </button>
@@ -177,7 +207,7 @@
                         </main>
                     </div>
 
-                    {/* Canvas Editor */}
+                    {/* Editor Modal */}
                     {editingId && (
                         <EditorModal 
                             image={images.find(i=>i.id===editingId)} 
@@ -186,23 +216,25 @@
                         />
                     )}
 
-                    {/* History Panel */}
+                    {/* History Sidebar */}
                     {showHistory && (
-                        <div className="fixed inset-0 z-[100] bg-black/20 flex justify-end">
+                        <div className="fixed inset-0 z-[100] bg-black/30 backdrop-blur-sm flex justify-end">
                             <div className="w-full max-w-sm bg-white h-full p-8 shadow-2xl animate-in overflow-y-auto">
                                 <div className="flex justify-between items-center mb-8 border-b pb-4">
-                                    <h2 className="text-2xl font-bold">学習履歴</h2>
-                                    <button onClick={()=>setShowHistory(false)} className="text-3xl">&times;</button>
+                                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">🕒 学習履歴</h2>
+                                    <button onClick={()=>setShowHistory(false)} className="text-3xl text-gray-400 hover:text-black">&times;</button>
                                 </div>
-                                {history.map(h => (
-                                    <div key={h.id} className="p-5 bento mb-4 cursor-pointer hover:bg-indigo-50 transition-colors" onClick={()=>{setResultText(h.answer); setImages(h.images); setStatus('result'); setShowHistory(false);}}>
-                                        <p className="text-[10px] text-gray-400">{h.date}</p>
-                                        <p className="font-bold text-indigo-600 text-lg">{h.subject}</p>
-                                        <div className="flex gap-1 mt-3">
-                                            {h.images.map((img,i)=><img key={i} src={img.src} className="w-10 h-10 rounded-md object-cover opacity-60"/>)}
+                                {history.length === 0 ? <p className="text-center text-gray-400 py-10">履歴はまだありません</p> : 
+                                    history.map(h => (
+                                        <div key={h.id} className="p-5 bento mb-4 cursor-pointer hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100" onClick={()=>{setResultText(h.answer); setImages(h.images); setStatus('result'); setShowHistory(false);}}>
+                                            <p className="text-[10px] text-gray-400 mb-1">{h.date}</p>
+                                            <p className="font-bold text-indigo-600 text-lg mb-2">{h.subject}</p>
+                                            <div className="flex gap-2 overflow-hidden h-12">
+                                                {h.images.map((img,i)=><img key={i} src={img.src} className="w-12 h-12 rounded-lg object-cover opacity-60"/>)}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                }
                             </div>
                         </div>
                     )}
@@ -210,27 +242,33 @@
             );
         }
 
+        // --- Setup View ---
         function SetupView({ onComplete }) {
             const [k, setK] = useState('');
             const [p, setP] = useState('');
             return (
-                <div className="min-h-screen flex items-center justify-center p-6 bg-slate-100">
-                    <div className="bento p-12 max-w-md w-full text-center space-y-8 shadow-2xl">
-                        <div className="text-6xl">🎓</div>
+                <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+                    <div className="bento p-12 max-w-md w-full text-center space-y-8 shadow-2xl border-indigo-100">
+                        <div className="text-7xl">🎓</div>
                         <div>
-                            <h2 className="text-2xl font-bold">AI先生をセットアップ</h2>
-                            <p className="text-gray-400 text-xs mt-2 italic">GitHubに公開しても安全な形式です</p>
+                            <h2 className="text-2xl font-bold text-gray-800">AI先生を起動</h2>
+                            <p className="text-gray-400 text-xs mt-3 leading-relaxed">
+                                APIキーはブラウザのLocalStorageに保存されます。<br/>
+                                GitHubにソースを公開しても、キーは漏洩しません。
+                            </p>
                         </div>
                         <div className="space-y-4">
-                            <input type="password" placeholder="Gemini APIキー" className="w-full p-4 rounded-2xl bg-gray-50 ring-1 ring-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 text-center font-mono" value={k} onChange={e=>setK(e.target.value)} />
-                            <input type="password" placeholder="合言葉 (2024)" className="w-full p-4 rounded-2xl bg-gray-50 ring-1 ring-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 text-center" value={p} onChange={e=>setP(e.target.value)} />
-                            <button onClick={() => onComplete(k, p)} className="w-full btn-grad text-white py-4 rounded-2xl font-bold text-lg shadow-lg">アプリを起動</button>
+                            <input type="password" placeholder="Gemini APIキー" className="w-full p-4 rounded-2xl bg-gray-50 ring-1 ring-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 text-center font-mono shadow-inner" value={k} onChange={e=>setK(e.target.value)} />
+                            <input type="password" placeholder="合言葉 (2024)" className="w-full p-4 rounded-2xl bg-gray-50 ring-1 ring-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 text-center shadow-inner" value={p} onChange={e=>setP(e.target.value)} />
+                            <button onClick={() => onComplete(k, p)} className="w-full btn-grad text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:brightness-110 transition-all">アプリを開始</button>
                         </div>
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" className="block text-[10px] text-indigo-400 hover:underline">APIキーを取得する(無料) ↗</a>
                     </div>
                 </div>
             );
         }
 
+        // --- Canvas Editor ---
         function EditorModal({ image, onSave, onClose }) {
             const canvasRef = useRef(null);
             const [color, setColor] = useState('#ff0000');
@@ -246,7 +284,7 @@
                     canvas.height = img.height;
                     ctx.drawImage(img, 0, 0);
                     ctx.lineCap = 'round';
-                    ctx.lineWidth = canvas.width / 80;
+                    ctx.lineWidth = Math.max(8, canvas.width / 100);
                 };
             }, []);
 
@@ -269,18 +307,18 @@
             };
 
             return (
-                <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col p-4">
-                    <div className="flex justify-between items-center text-white p-4">
+                <div className="fixed inset-0 z-[200] bg-black/95 flex flex-col p-4 backdrop-blur-md">
+                    <div className="flex justify-between items-center text-white p-6 max-w-5xl mx-auto w-full">
                         <div className="flex gap-4">
-                            {['#ff0000', '#0000ff', '#00ff00', '#ffff00'].map(c => <button key={c} onClick={()=>setColor(c)} className={`w-10 h-10 rounded-full border-2 ${color===c?'border-white':'border-transparent'}`} style={{background:c}} />)}
+                            {['#ff0000', '#3b82f6', '#22c55e', '#facc15'].map(c => <button key={c} onClick={()=>setColor(c)} className={`w-10 h-10 rounded-full border-2 transition-transform active:scale-90 ${color===c?'border-white scale-110 shadow-lg shadow-white/20':'border-transparent opacity-50'}`} style={{background:c}} />)}
                         </div>
-                        <div className="flex gap-4 font-bold">
-                            <button onClick={onClose}>キャンセル</button>
-                            <button onClick={() => onSave(canvasRef.current.toDataURL('image/jpeg'))} className="bg-indigo-600 px-8 py-2 rounded-full">保存</button>
+                        <div className="flex gap-6 font-bold">
+                            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">キャンセル</button>
+                            <button onClick={() => onSave(canvasRef.current.toDataURL('image/jpeg'))} className="bg-white text-black px-8 py-2 rounded-full hover:bg-indigo-50 transition-colors">保存</button>
                         </div>
                     </div>
                     <div className="flex-1 flex items-center justify-center overflow-hidden canvas-container">
-                        <canvas ref={canvasRef} className="max-w-full max-h-full object-contain bg-white rounded-xl" 
+                        <canvas ref={canvasRef} className="max-w-full max-h-full object-contain bg-white rounded-2xl shadow-2xl" 
                             onMouseDown={(e) => { isDrawing.current = true; canvasRef.current.getContext('2d').beginPath(); const [x,y]=getPos(e); canvasRef.current.getContext('2d').moveTo(x,y); }}
                             onMouseMove={draw} onMouseUp={() => isDrawing.current = false}
                             onTouchStart={(e) => { isDrawing.current = true; canvasRef.current.getContext('2d').beginPath(); const [x,y]=getPos(e); canvasRef.current.getContext('2d').moveTo(x,y); }}
